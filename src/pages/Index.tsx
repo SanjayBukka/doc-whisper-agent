@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileText, Search, BookOpen, CheckCircle, Edit, BarChart3, Zap, Globe, Users, Target } from 'lucide-react';
+import { FileText, Search, BookOpen, CheckCircle, Edit, BarChart3, Zap, Globe, Users, Target, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { analyzeDocumentation, type AnalysisResponse } from '@/services/api';
 
@@ -23,7 +23,7 @@ const Index = () => {
     if (!url) {
       toast({
         title: "URL Required",
-        description: "Please enter a MoEngage documentation URL to analyze.",
+        description: "Please enter a documentation URL to analyze.",
         variant: "destructive"
       });
       return;
@@ -76,7 +76,13 @@ const Index = () => {
     }
   };
 
-  const exampleUrls = [
+  const testUrls = [
+    "https://httpbin.org/html",
+    "https://example.com",
+    "https://en.wikipedia.org/wiki/Web_scraping"
+  ];
+
+  const moengageUrls = [
     "https://partners.moengage.com/hc/en-us/articles/9643917325460-Create-content-creatives",
     "https://help.moengage.com/hc/en-us/articles/28194279371668-How-to-Analyze-OTT-Content-Performance"
   ];
@@ -95,7 +101,7 @@ const Index = () => {
             MoEngage Documentation Analyzer
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            AI-powered analysis tool that evaluates MoEngage documentation articles and provides 
+            AI-powered analysis tool that evaluates documentation articles and provides 
             actionable improvement suggestions for readability, structure, completeness, and writing style.
           </p>
         </div>
@@ -143,14 +149,14 @@ const Index = () => {
               Analyze Documentation
             </CardTitle>
             <CardDescription className="text-base">
-              Enter a MoEngage documentation URL to get comprehensive analysis and improvement suggestions.
+              Enter a documentation URL to get comprehensive analysis and improvement suggestions.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  MoEngage Documentation URL
+                  Documentation URL
                 </label>
                 <Input
                   placeholder="https://help.moengage.com/hc/en-us/articles/..."
@@ -161,10 +167,32 @@ const Index = () => {
                 />
               </div>
               
+              <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-orange-800 mb-2">MoEngage URLs may be blocked</p>
+                    <p className="text-sm text-orange-700 mb-3">If you get 403 errors, try these test URLs first:</p>
+                    <div className="space-y-2">
+                      {testUrls.map((testUrl, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setUrl(testUrl)}
+                          className="text-blue-600 hover:text-blue-800 text-sm hover:underline block text-left"
+                          disabled={analyzing}
+                        >
+                          {testUrl}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
               <div className="bg-gray-50 rounded-lg p-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Example URLs:</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">MoEngage URLs (may require alternative access):</p>
                 <div className="space-y-2">
-                  {exampleUrls.map((exampleUrl, index) => (
+                  {moengageUrls.map((exampleUrl, index) => (
                     <button
                       key={index}
                       onClick={() => setUrl(exampleUrl)}

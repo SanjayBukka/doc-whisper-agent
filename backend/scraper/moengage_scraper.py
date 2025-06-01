@@ -3,107 +3,175 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
+import random
 from urllib.parse import urljoin, urlparse
 from utils.logger import get_logger
 
 class MoEngageScraper:
-    """Scraper specifically designed for MoEngage documentation sites"""
+    """Enhanced scraper with anti-blocking techniques"""
     
     def __init__(self):
         self.logger = get_logger(__name__)
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Cache-Control': 'max-age=0'
-        })
+        
+        # Rotate user agents to appear more human-like
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
+        ]
     
     def scrape_url(self, url):
-        """Scrape a MoEngage documentation URL and extract structured content"""
+        """Enhanced scraping with multiple fallback strategies"""
         
         try:
             self.logger.info(f"Scraping URL: {url}")
             
-            # Add delay to avoid rate limiting
-            time.sleep(2)
+            # Strategy 1: Standard requests with enhanced headers
+            scraped_data = self._try_standard_scraping(url)
+            if scraped_data and 'error' not in scraped_data:
+                return scraped_data
             
-            # Make request with retry logic
-            response = self._make_request_with_retry(url)
-            if not response:
-                return {'error': 'Failed to fetch URL after retries'}
+            # Strategy 2: Try with different user agent and headers
+            scraped_data = self._try_enhanced_scraping(url)
+            if scraped_data and 'error' not in scraped_data:
+                return scraped_data
             
-            soup = BeautifulSoup(response.content, 'html.parser')
+            # Strategy 3: Try with session and cookies
+            scraped_data = self._try_session_scraping(url)
+            if scraped_data and 'error' not in scraped_data:
+                return scraped_data
             
-            # Extract structured data
-            scraped_data = {
-                'url': url,
-                'title': self._extract_title(soup),
-                'content': self._extract_main_content(soup),
-                'headings': self._extract_headings(soup),
-                'paragraphs': self._extract_paragraphs(soup),
-                'images': self._extract_images(soup),
-                'links': self._extract_links(soup),
-                'code_blocks': self._extract_code_blocks(soup),
-                'lists': self._extract_lists(soup),
-                'metadata': self._extract_metadata(soup),
-                'scraped_at': time.time()
-            }
-            
-            # Validate scraped content
-            if not scraped_data['content'] or len(scraped_data['content']) < 100:
-                return {'error': 'Insufficient content extracted from the page'}
-            
-            self.logger.info(f"Successfully scraped {len(scraped_data['content'])} characters")
-            return scraped_data
+            # If all strategies fail, return error
+            return {'error': 'All scraping strategies failed - website may be blocking automated access'}
             
         except Exception as e:
             self.logger.error(f"Error scraping {url}: {str(e)}")
             return {'error': str(e)}
     
-    def _make_request_with_retry(self, url, max_retries=3):
-        """Make HTTP request with retry logic and better error handling"""
-        
-        for attempt in range(max_retries):
+    def _try_standard_scraping(self, url):
+        """Try standard scraping with basic headers"""
+        try:
+            headers = {
+                'User-Agent': random.choice(self.user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return self._extract_content(response, url)
+            else:
+                return {'error': f'HTTP {response.status_code}'}
+                
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def _try_enhanced_scraping(self, url):
+        """Try with enhanced headers and referrer"""
+        try:
+            # Add random delay
+            time.sleep(random.uniform(1, 3))
+            
+            headers = {
+                'User-Agent': random.choice(self.user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0',
+                'Referer': 'https://www.google.com/'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return self._extract_content(response, url)
+            else:
+                return {'error': f'Enhanced HTTP {response.status_code}'}
+                
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def _try_session_scraping(self, url):
+        """Try with session and cookie handling"""
+        try:
+            # Create fresh session
+            session = requests.Session()
+            
+            # Add random delay
+            time.sleep(random.uniform(2, 5))
+            
+            headers = {
+                'User-Agent': random.choice(self.user_agents),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            
+            # First, try to visit the main domain to get cookies
+            parsed_url = urlparse(url)
+            domain_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
             try:
-                # Add random delay between attempts
-                if attempt > 0:
-                    delay = (2 ** attempt) + (attempt * 0.5)
-                    self.logger.info(f"Waiting {delay} seconds before retry...")
-                    time.sleep(delay)
+                session.get(domain_url, headers=headers, timeout=15)
+                time.sleep(random.uniform(1, 2))
+            except:
+                pass  # Continue even if domain visit fails
+            
+            # Now try the actual URL
+            response = session.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                return self._extract_content(response, url)
+            else:
+                return {'error': f'Session HTTP {response.status_code}'}
                 
-                # Update headers for each attempt
-                self.session.headers.update({
-                    'User-Agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.{attempt}.0 Safari/537.36',
-                })
-                
-                self.logger.info(f"Attempt {attempt + 1} for {url}")
-                response = self.session.get(url, timeout=30, allow_redirects=True)
-                
-                if response.status_code == 403:
-                    self.logger.warning(f"403 Forbidden - Server blocking access to {url}")
-                    if attempt < max_retries - 1:
-                        continue
-                    else:
-                        return None
-                
-                response.raise_for_status()
-                self.logger.info(f"Successfully fetched {url} on attempt {attempt + 1}")
-                return response
-                
-            except requests.RequestException as e:
-                self.logger.warning(f"Attempt {attempt + 1} failed for {url}: {str(e)}")
-                if attempt < max_retries - 1:
-                    continue
-                else:
-                    self.logger.error(f"All attempts failed for {url}")
-                    return None
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def _extract_content(self, response, url):
+        """Extract and structure content from successful response"""
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Extract structured data
+        scraped_data = {
+            'url': url,
+            'title': self._extract_title(soup),
+            'content': self._extract_main_content(soup),
+            'headings': self._extract_headings(soup),
+            'paragraphs': self._extract_paragraphs(soup),
+            'images': self._extract_images(soup),
+            'links': self._extract_links(soup),
+            'code_blocks': self._extract_code_blocks(soup),
+            'lists': self._extract_lists(soup),
+            'metadata': self._extract_metadata(soup),
+            'scraped_at': time.time()
+        }
+        
+        # Validate scraped content
+        if not scraped_data['content'] or len(scraped_data['content']) < 100:
+            return {'error': 'Insufficient content extracted from the page'}
+        
+        self.logger.info(f"Successfully scraped {len(scraped_data['content'])} characters")
+        return scraped_data
     
     def _extract_title(self, soup):
         """Extract document title"""
@@ -177,7 +245,7 @@ class MoEngageScraper:
         
         return ""
 
-    # ... keep existing code (other methods remain the same)
+    # ... keep existing code (other extraction methods remain the same)
     
     def _extract_headings(self, soup):
         """Extract document headings with hierarchy"""

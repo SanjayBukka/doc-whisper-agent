@@ -24,9 +24,32 @@ def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy", "message": "MoEngage Documentation Analyzer API is running"})
 
+@app.route('/test-urls', methods=['GET'])
+def get_test_urls():
+    """Get test URLs that should work for scraping"""
+    test_urls = [
+        {
+            "url": "https://httpbin.org/html",
+            "description": "Simple HTML test page"
+        },
+        {
+            "url": "https://example.com",
+            "description": "Basic example page"
+        },
+        {
+            "url": "https://en.wikipedia.org/wiki/Web_scraping",
+            "description": "Wikipedia article on web scraping"
+        },
+        {
+            "url": "https://jsonplaceholder.typicode.com/posts/1",
+            "description": "JSON API endpoint (will return JSON data)"
+        }
+    ]
+    return jsonify({"test_urls": test_urls})
+
 @app.route('/analyze', methods=['POST'])
 def analyze_documentation():
-    """Analyze a MoEngage documentation URL"""
+    """Analyze a documentation URL"""
     try:
         # Get URL from request
         data = request.get_json()
@@ -47,14 +70,19 @@ def analyze_documentation():
             # Provide better error messages for common issues
             if "403" in error_msg or "Forbidden" in error_msg:
                 return jsonify({
-                    "error": "Access denied to the URL. The website may be blocking automated requests. Please try a different URL or check if the URL is publicly accessible."
+                    "error": "Access denied to the URL. The website may be blocking automated requests. Please try a different URL or check if the URL is publicly accessible.",
+                    "suggestion": "Try using one of the test URLs from /test-urls endpoint"
                 }), 400
             elif "Failed to fetch" in error_msg:
                 return jsonify({
-                    "error": "Unable to access the URL. Please check if the URL is correct and accessible."
+                    "error": "Unable to access the URL. Please check if the URL is correct and accessible.",
+                    "suggestion": "Try using one of the test URLs from /test-urls endpoint"
                 }), 400
             else:
-                return jsonify({"error": f"Failed to scrape URL: {error_msg}"}), 400
+                return jsonify({
+                    "error": f"Failed to scrape URL: {error_msg}",
+                    "suggestion": "Try using one of the test URLs from /test-urls endpoint"
+                }), 400
         
         # Step 2: Analyze the content
         logger.info("Analyzing content...")
@@ -115,9 +143,12 @@ if __name__ == '__main__':
     print("  POST /analyze - Analyze single URL")
     print("  POST /analyze/batch - Analyze multiple URLs")
     print("  GET /health - Health check")
+    print("  GET /test-urls - Get working test URLs")
     print()
-    print("🌐 Frontend can run on any port (detected automatically)")
+    print("🧪 Test URLs available at: http://localhost:5000/test-urls")
     print("🔗 API running on: http://localhost:5000")
+    print()
+    print("💡 If MoEngage URLs are blocked, try the test URLs first!")
     print()
     
     app.run(host='0.0.0.0', port=5000, debug=True)

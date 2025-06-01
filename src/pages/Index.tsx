@@ -7,15 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
 import { FileText, Search, BookOpen, CheckCircle, Edit, BarChart3, Zap, Globe, Users, Target } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { analyzeDocumentation, type AnalysisResponse } from '@/services/api';
 
 const Index = () => {
   const [url, setUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [analysisResults, setAnalysisResults] = useState(null);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleAnalyze = async () => {
@@ -30,86 +31,54 @@ const Index = () => {
 
     setAnalyzing(true);
     setProgress(0);
+    setError(null);
+    setAnalysisResults(null);
 
-    // Simulate analysis process
-    const steps = [
-      { name: "Scraping documentation...", duration: 1000 },
-      { name: "Analyzing readability...", duration: 1500 },
-      { name: "Evaluating structure...", duration: 1200 },
-      { name: "Checking completeness...", duration: 1300 },
-      { name: "Analyzing writing style...", duration: 1000 },
-      { name: "Generating recommendations...", duration: 800 }
-    ];
+    try {
+      // Show progress simulation
+      const progressSteps = [
+        { name: "Connecting to backend...", duration: 500 },
+        { name: "Scraping documentation...", duration: 2000 },
+        { name: "Analyzing readability...", duration: 1500 },
+        { name: "Evaluating structure...", duration: 1200 },
+        { name: "Checking completeness...", duration: 1300 },
+        { name: "Analyzing writing style...", duration: 1000 },
+        { name: "Generating recommendations...", duration: 800 }
+      ];
 
-    for (let i = 0; i < steps.length; i++) {
-      setProgress((i + 1) * (100 / steps.length));
-      await new Promise(resolve => setTimeout(resolve, steps[i].duration));
+      // Start the API call
+      const analysisPromise = analyzeDocumentation(url);
+
+      // Simulate progress while waiting for API
+      for (let i = 0; i < progressSteps.length; i++) {
+        setProgress((i + 1) * (100 / progressSteps.length));
+        await new Promise(resolve => setTimeout(resolve, progressSteps[i].duration));
+      }
+
+      // Wait for the actual API response
+      const results = await analysisPromise;
+      setAnalysisResults(results);
+      
+      toast({
+        title: "Analysis Complete!",
+        description: "Your documentation has been analyzed successfully.",
+      });
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setError(error instanceof Error ? error.message : 'An unexpected error occurred');
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to analyze the documentation. Please check the URL and try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setAnalyzing(false);
     }
-
-    // Simulate analysis results
-    const mockResults = {
-      url: url,
-      title: "Creating and Managing User Segments in MoEngage",
-      wordCount: 1247,
-      headingCount: 8,
-      imageCount: 5,
-      readability: {
-        fleschScore: 52.3,
-        gradeLevel: 10.2,
-        level: "Fairly Difficult",
-        suggestions: [
-          "Average sentence length is 22.4 words. Consider breaking long sentences into shorter ones (aim for 15-20 words).",
-          "Text contains technical jargon that may be difficult for marketers. Consider adding definitions or simpler explanations.",
-          "Some paragraphs exceed 100 words. Break them into smaller, focused paragraphs."
-        ]
-      },
-      structure: {
-        headingLevels: [1, 2, 3],
-        hasGaps: false,
-        avgParagraphLength: 87,
-        suggestions: [
-          "Good heading hierarchy maintained throughout the document.",
-          "Consider adding more subheadings to break up longer sections.",
-          "Some sections could benefit from bullet points or numbered lists for better scannability."
-        ]
-      },
-      completeness: {
-        hasExamples: true,
-        exampleCount: 3,
-        hasSteps: true,
-        hasCodeBlocks: true,
-        suggestions: [
-          "Examples are present but could be more diverse to cover different use cases.",
-          "Consider adding a troubleshooting section for common issues.",
-          "Prerequisites section could be more detailed for new users."
-        ]
-      },
-      style: {
-        passiveVoiceRatio: 0.28,
-        actionLanguageRatio: 0.12,
-        consistencyScore: 78,
-        suggestions: [
-          "High passive voice usage (28%). Use active voice for clearer instructions.",
-          "Add more action-oriented language with clear imperatives (e.g., 'Click here', 'Enter your data').",
-          "Tone is professional but could be more customer-focused in some sections."
-        ]
-      },
-      overallScore: 73
-    };
-
-    setAnalysisResults(mockResults);
-    setAnalyzing(false);
-    
-    toast({
-      title: "Analysis Complete!",
-      description: "Your documentation has been analyzed successfully.",
-    });
   };
 
   const exampleUrls = [
-    "https://help.moengage.com/hc/en-us/articles/4404464738196-Creating-and-Managing-Segments",
-    "https://help.moengage.com/hc/en-us/articles/4404464738324-Setting-up-Push-Notifications",
-    "https://help.moengage.com/hc/en-us/articles/4404464738452-Email-Campaign-Setup"
+    "https://partners.moengage.com/hc/en-us/articles/9643917325460-Create-content-creatives",
+    "https://help.moengage.com/hc/en-us/articles/28194279371668-How-to-Analyze-OTT-Content-Performance"
   ];
 
   return (
@@ -219,6 +188,12 @@ const Index = () => {
               </div>
             )}
 
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <Button 
               onClick={handleAnalyze} 
               disabled={analyzing || !url}
@@ -238,7 +213,7 @@ const Index = () => {
                 Analysis Results
               </CardTitle>
               <CardDescription>
-                Comprehensive analysis of: {analysisResults.title}
+                Comprehensive analysis of: {analysisResults.document_info.title}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -246,25 +221,25 @@ const Index = () => {
               <div className="grid md:grid-cols-4 gap-4 mb-8">
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-blue-600">{analysisResults.wordCount}</div>
+                    <div className="text-2xl font-bold text-blue-600">{analysisResults.document_info.word_count}</div>
                     <div className="text-sm text-gray-600">Words</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-green-600">{analysisResults.headingCount}</div>
-                    <div className="text-sm text-gray-600">Headings</div>
+                    <div className="text-2xl font-bold text-green-600">{analysisResults.readability.score}</div>
+                    <div className="text-sm text-gray-600">Readability Score</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-purple-600">{analysisResults.imageCount}</div>
-                    <div className="text-sm text-gray-600">Images</div>
+                    <div className="text-2xl font-bold text-purple-600">{analysisResults.structure.score}</div>
+                    <div className="text-sm text-gray-600">Structure Score</div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <div className="text-2xl font-bold text-orange-600">{analysisResults.overallScore}</div>
+                    <div className="text-2xl font-bold text-orange-600">{analysisResults.overall_score}</div>
                     <div className="text-sm text-gray-600">Overall Score</div>
                   </CardContent>
                 </Card>
@@ -272,40 +247,19 @@ const Index = () => {
 
               {/* Detailed Analysis Tabs */}
               <Tabs defaultValue="readability" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="readability">Readability</TabsTrigger>
                   <TabsTrigger value="structure">Structure</TabsTrigger>
                   <TabsTrigger value="completeness">Completeness</TabsTrigger>
                   <TabsTrigger value="style">Style</TabsTrigger>
+                  <TabsTrigger value="summary">Summary</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="readability" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-600">{analysisResults.readability.fleschScore}</div>
-                        <div className="text-sm text-gray-600">Flesch Score</div>
-                        <Badge variant="secondary" className="mt-2">{analysisResults.readability.level}</Badge>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-600">{analysisResults.readability.gradeLevel}</div>
-                        <div className="text-sm text-gray-600">Grade Level</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <Progress value={analysisResults.readability.fleschScore} className="mb-2" />
-                        <div className="text-sm text-gray-600">Readability Progress</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
                   <Alert>
                     <Target className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Suggestions for Improvement:</strong>
+                      <strong>Readability Score: {analysisResults.readability.score}/10</strong>
                       <ul className="mt-2 space-y-1">
                         {analysisResults.readability.suggestions.map((suggestion, index) => (
                           <li key={index} className="text-sm">• {suggestion}</li>
@@ -316,34 +270,10 @@ const Index = () => {
                 </TabsContent>
 
                 <TabsContent value="structure" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-purple-600">{analysisResults.structure.headingLevels.length}</div>
-                        <div className="text-sm text-gray-600">Heading Levels</div>
-                        <div className="text-xs text-gray-500 mt-1">H{analysisResults.structure.headingLevels.join(', H')}</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-600">{analysisResults.structure.avgParagraphLength}</div>
-                        <div className="text-sm text-gray-600">Avg Paragraph Length</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <Badge variant={analysisResults.structure.hasGaps ? "destructive" : "default"}>
-                          {analysisResults.structure.hasGaps ? "Has Gaps" : "Well Structured"}
-                        </Badge>
-                        <div className="text-sm text-gray-600 mt-2">Hierarchy Status</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
                   <Alert>
                     <FileText className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Structure Recommendations:</strong>
+                      <strong>Structure Score: {analysisResults.structure.score}/10</strong>
                       <ul className="mt-2 space-y-1">
                         {analysisResults.structure.suggestions.map((suggestion, index) => (
                           <li key={index} className="text-sm">• {suggestion}</li>
@@ -354,38 +284,10 @@ const Index = () => {
                 </TabsContent>
 
                 <TabsContent value="completeness" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-green-600">{analysisResults.completeness.exampleCount}</div>
-                        <div className="text-sm text-gray-600">Examples</div>
-                        <Badge variant={analysisResults.completeness.hasExamples ? "default" : "destructive"} className="mt-2">
-                          {analysisResults.completeness.hasExamples ? "Present" : "Missing"}
-                        </Badge>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <Badge variant={analysisResults.completeness.hasSteps ? "default" : "destructive"}>
-                          {analysisResults.completeness.hasSteps ? "Has Steps" : "No Steps"}
-                        </Badge>
-                        <div className="text-sm text-gray-600 mt-2">Step-by-Step Guide</div>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <Badge variant={analysisResults.completeness.hasCodeBlocks ? "default" : "secondary"}>
-                          {analysisResults.completeness.hasCodeBlocks ? "Code Present" : "No Code"}
-                        </Badge>
-                        <div className="text-sm text-gray-600 mt-2">Code Examples</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
                   <Alert>
                     <CheckCircle className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Completeness Improvements:</strong>
+                      <strong>Completeness Score: {analysisResults.completeness.score}/10</strong>
                       <ul className="mt-2 space-y-1">
                         {analysisResults.completeness.suggestions.map((suggestion, index) => (
                           <li key={index} className="text-sm">• {suggestion}</li>
@@ -396,39 +298,51 @@ const Index = () => {
                 </TabsContent>
 
                 <TabsContent value="style" className="space-y-6">
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-red-600">{Math.round(analysisResults.style.passiveVoiceRatio * 100)}%</div>
-                        <div className="text-sm text-gray-600">Passive Voice</div>
-                        <Badge variant="destructive" className="mt-2">Too High</Badge>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-orange-600">{Math.round(analysisResults.style.actionLanguageRatio * 100)}%</div>
-                        <div className="text-sm text-gray-600">Action Language</div>
-                        <Badge variant="secondary" className="mt-2">Needs Improvement</Badge>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold text-blue-600">{analysisResults.style.consistencyScore}</div>
-                        <div className="text-sm text-gray-600">Consistency Score</div>
-                        <Progress value={analysisResults.style.consistencyScore} className="mt-2" />
-                      </CardContent>
-                    </Card>
-                  </div>
-
                   <Alert>
                     <Edit className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Style Enhancements:</strong>
+                      <strong>Style Score: {analysisResults.style.score}/10</strong>
                       <ul className="mt-2 space-y-1">
                         {analysisResults.style.suggestions.map((suggestion, index) => (
                           <li key={index} className="text-sm">• {suggestion}</li>
                         ))}
                       </ul>
+                    </AlertDescription>
+                  </Alert>
+                </TabsContent>
+
+                <TabsContent value="summary" className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg text-green-600">Strengths</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-1">
+                          {analysisResults.summary.strengths.map((strength, index) => (
+                            <li key={index} className="text-sm">• {strength}</li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg text-red-600">Areas for Improvement</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ul className="space-y-1">
+                          {analysisResults.summary.priority_improvements.map((improvement, index) => (
+                            <li key={index} className="text-sm">• {improvement}</li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  <Alert>
+                    <AlertDescription>
+                      <strong>Recommendation:</strong> {analysisResults.summary.recommendation}
                     </AlertDescription>
                   </Alert>
                 </TabsContent>
@@ -440,7 +354,7 @@ const Index = () => {
         {/* Footer */}
         <div className="text-center mt-16 py-8 border-t border-gray-200">
           <p className="text-gray-600">
-            Built with React, TypeScript, and Tailwind CSS • 
+            Built with React, TypeScript, and Python • 
             <span className="ml-2">Powered by AI for intelligent documentation analysis</span>
           </p>
         </div>

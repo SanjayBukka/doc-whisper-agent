@@ -43,7 +43,18 @@ def analyze_documentation():
         if not scraped_data or 'error' in scraped_data:
             error_msg = scraped_data.get('error', 'Unknown scraping error')
             logger.error(f"Scraping failed: {error_msg}")
-            return jsonify({"error": f"Failed to scrape URL: {error_msg}"}), 400
+            
+            # Provide better error messages for common issues
+            if "403" in error_msg or "Forbidden" in error_msg:
+                return jsonify({
+                    "error": "Access denied to the URL. The website may be blocking automated requests. Please try a different URL or check if the URL is publicly accessible."
+                }), 400
+            elif "Failed to fetch" in error_msg:
+                return jsonify({
+                    "error": "Unable to access the URL. Please check if the URL is correct and accessible."
+                }), 400
+            else:
+                return jsonify({"error": f"Failed to scrape URL: {error_msg}"}), 400
         
         # Step 2: Analyze the content
         logger.info("Analyzing content...")
@@ -105,7 +116,7 @@ if __name__ == '__main__':
     print("  POST /analyze/batch - Analyze multiple URLs")
     print("  GET /health - Health check")
     print()
-    print("🌐 Frontend should run on: http://localhost:5173")
+    print("🌐 Frontend can run on any port (detected automatically)")
     print("🔗 API running on: http://localhost:5000")
     print()
     

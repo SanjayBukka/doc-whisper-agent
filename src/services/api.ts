@@ -53,13 +53,17 @@ export const analyzeDocumentation = async (url: string): Promise<AnalysisRespons
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
     console.error('API Error:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('Failed to analyze documentation. Please check if the backend server is running.');
   }
 };

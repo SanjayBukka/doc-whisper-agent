@@ -13,11 +13,16 @@ class MoEngageScraper:
         self.logger = get_logger(__name__)
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
         })
     
     def scrape_url(self, url):
@@ -25,6 +30,9 @@ class MoEngageScraper:
         
         try:
             self.logger.info(f"Scraping URL: {url}")
+            
+            # Add delay to avoid rate limiting
+            time.sleep(2)
             
             # Make request with retry logic
             response = self._make_request_with_retry(url)
@@ -50,7 +58,7 @@ class MoEngageScraper:
             
             # Validate scraped content
             if not scraped_data['content'] or len(scraped_data['content']) < 100:
-                return {'error': 'Insufficient content extracted'}
+                return {'error': 'Insufficient content extracted from the page'}
             
             self.logger.info(f"Successfully scraped {len(scraped_data['content'])} characters")
             return scraped_data
@@ -60,18 +68,39 @@ class MoEngageScraper:
             return {'error': str(e)}
     
     def _make_request_with_retry(self, url, max_retries=3):
-        """Make HTTP request with retry logic"""
+        """Make HTTP request with retry logic and better error handling"""
         
         for attempt in range(max_retries):
             try:
-                response = self.session.get(url, timeout=30)
+                # Add random delay between attempts
+                if attempt > 0:
+                    delay = (2 ** attempt) + (attempt * 0.5)
+                    self.logger.info(f"Waiting {delay} seconds before retry...")
+                    time.sleep(delay)
+                
+                # Update headers for each attempt
+                self.session.headers.update({
+                    'User-Agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.{attempt}.0 Safari/537.36',
+                })
+                
+                self.logger.info(f"Attempt {attempt + 1} for {url}")
+                response = self.session.get(url, timeout=30, allow_redirects=True)
+                
+                if response.status_code == 403:
+                    self.logger.warning(f"403 Forbidden - Server blocking access to {url}")
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        return None
+                
                 response.raise_for_status()
+                self.logger.info(f"Successfully fetched {url} on attempt {attempt + 1}")
                 return response
                 
             except requests.RequestException as e:
                 self.logger.warning(f"Attempt {attempt + 1} failed for {url}: {str(e)}")
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
                 else:
                     self.logger.error(f"All attempts failed for {url}")
                     return None
@@ -84,6 +113,8 @@ class MoEngageScraper:
             'h1.article-title',
             'h1.page-title', 
             '.article-header h1',
+            '.content-header h1',
+            '.page-header h1',
             'h1',
             'title'
         ]
@@ -91,7 +122,9 @@ class MoEngageScraper:
         for selector in selectors:
             element = soup.select_one(selector)
             if element:
-                return element.get_text(strip=True)
+                title = element.get_text(strip=True)
+                if title and len(title) > 3:
+                    return title
         
         return "No title found"
     
@@ -105,31 +138,46 @@ class MoEngageScraper:
             '.post-content',
             '.content-body',
             '.main-content',
+            '.section-content',
             'main',
             '.content',
-            'article'
+            'article',
+            '.article'
         ]
         
         for selector in content_selectors:
             content_div = soup.select_one(selector)
             if content_div:
-                # Remove script, style, and navigation elements
-                for element in content_div.find_all(['script', 'style', 'nav', 'header', 'footer']):
+                # Remove unwanted elements
+                for element in content_div.find_all(['script', 'style', 'nav', 'header', 'footer', '.sidebar', '.navigation']):
                     element.decompose()
                 
                 # Get text content
                 text = content_div.get_text(separator=' ', strip=True)
                 # Clean up whitespace
                 text = re.sub(r'\s+', ' ', text)
-                return text
+                if len(text) > 100:  # Only return if substantial content
+                    return text
         
         # Fallback: extract all paragraph text
         paragraphs = soup.find_all('p')
         if paragraphs:
-            text = ' '.join([p.get_text(strip=True) for p in paragraphs])
+            text = ' '.join([p.get_text(strip=True) for p in paragraphs if len(p.get_text(strip=True)) > 10])
+            text = re.sub(r'\s+', ' ', text)
+            return text
+        
+        # Last resort: get all text from body
+        body = soup.find('body')
+        if body:
+            # Remove unwanted elements
+            for element in body.find_all(['script', 'style', 'nav', 'header', 'footer']):
+                element.decompose()
+            text = body.get_text(separator=' ', strip=True)
             return re.sub(r'\s+', ' ', text)
         
         return ""
+
+    # ... keep existing code (other methods remain the same)
     
     def _extract_headings(self, soup):
         """Extract document headings with hierarchy"""
@@ -137,12 +185,14 @@ class MoEngageScraper:
         headings = []
         for level in range(1, 7):  # h1 to h6
             for heading in soup.find_all(f'h{level}'):
-                headings.append({
-                    'level': level,
-                    'text': heading.get_text(strip=True),
-                    'id': heading.get('id', ''),
-                    'class': heading.get('class', [])
-                })
+                text = heading.get_text(strip=True)
+                if text:
+                    headings.append({
+                        'level': level,
+                        'text': text,
+                        'id': heading.get('id', ''),
+                        'class': heading.get('class', [])
+                    })
         
         return headings
     
@@ -235,7 +285,9 @@ class MoEngageScraper:
         for list_element in soup.find_all(['ul', 'ol']):
             items = []
             for li in list_element.find_all('li', recursive=False):
-                items.append(li.get_text(strip=True))
+                text = li.get_text(strip=True)
+                if text:
+                    items.append(text)
             
             if items:
                 lists.append({
@@ -260,8 +312,9 @@ class MoEngageScraper:
                 metadata[name] = content
         
         # Extract other useful information
+        content = self._extract_main_content(soup)
         metadata.update({
-            'total_words': len(self._extract_main_content(soup).split()),
+            'total_words': len(content.split()) if content else 0,
             'total_headings': len(self._extract_headings(soup)),
             'total_paragraphs': len(self._extract_paragraphs(soup)),
             'total_images': len(self._extract_images(soup)),
